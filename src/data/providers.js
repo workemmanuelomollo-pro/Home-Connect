@@ -1,0 +1,98 @@
+export const providers = [
+  {
+    id: "p01", name: "John Mwangi", category: "plumbing", neighborhood: "Kilimani",
+    services: ["Leaking pipes", "Blocked drains", "Water heater repair", "Tap installation"],
+    rating: 4.8, reviews: 34, verified: true, backgroundChecked: true,
+    available: true, rateFrom: 800, rateTier: "mid", phone: "+254712345678", avatar: null,
+  },
+  {
+    id: "p02", name: "Peter Otieno", category: "plumbing", neighborhood: "Westlands",
+    services: ["Leaking pipes", "Toilet repair", "Drain unblocking"],
+    rating: 4.6, reviews: 22, verified: true, backgroundChecked: false,
+    available: true, rateFrom: 1000, rateTier: "mid", phone: "+254723456789", avatar: null,
+  },
+  {
+    id: "p03", name: "Grace Wanjiku", category: "cleaning", neighborhood: "Lavington",
+    services: ["Deep cleaning", "Sofa cleaning", "Post-construction clean"],
+    rating: 4.9, reviews: 51, verified: true, backgroundChecked: true,
+    available: true, rateFrom: 1200, rateTier: "premium", phone: "+254734567890", avatar: null,
+  },
+  {
+    id: "p04", name: "David Kiprop", category: "electrical", neighborhood: "Karen",
+    services: ["Wiring", "Breaker issues", "Lighting installation"],
+    rating: 4.7, reviews: 28, verified: true, backgroundChecked: false,
+    available: false, rateFrom: 1500, rateTier: "premium", phone: "+254745678901", avatar: null,
+  },
+  {
+    id: "p05", name: "Mary Achieng", category: "cleaning", neighborhood: "Kilimani",
+    services: ["Deep cleaning", "Move-in clean", "Carpet cleaning"],
+    rating: 4.5, reviews: 19, verified: true, backgroundChecked: false,
+    available: true, rateFrom: 900, rateTier: "budget", phone: "+254756789012", avatar: null,
+  },
+  {
+    id: "p06", name: "Samuel Njoroge", category: "handyman", neighborhood: "CBD",
+    services: ["Furniture assembly", "TV mounting", "Door repair"],
+    rating: 4.4, reviews: 15, verified: false, backgroundChecked: false,
+    available: true, rateFrom: 700, rateTier: "budget", phone: "+254767890123", avatar: null,
+  },
+  {
+    id: "p07", name: "Faith Njeri", category: "appliance", neighborhood: "Kileleshwa",
+    services: ["Fridge repair", "Washing machine repair", "Cooker repair"],
+    rating: 4.8, reviews: 40, verified: true, backgroundChecked: true,
+    available: true, rateFrom: 1100, rateTier: "mid", phone: "+254778901234", avatar: null,
+  },
+  {
+    id: "p08", name: "Brian Ochieng", category: "ac", neighborhood: "Westlands",
+    services: ["AC servicing", "AC installation", "Gas refill"],
+    rating: 4.6, reviews: 25, verified: true, backgroundChecked: false,
+    available: true, rateFrom: 1800, rateTier: "premium", phone: "+254789012345", avatar: null,
+  },
+  {
+    id: "p09", name: "Lucy Muthoni", category: "cleaning", neighborhood: "Karen",
+    services: ["Deep cleaning", "Sofa cleaning", "Post-construction clean"],
+    rating: 4.9, reviews: 62, verified: true, backgroundChecked: true,
+    available: false, rateFrom: 1500, rateTier: "premium", phone: "+254790123456", avatar: null,
+  },
+  {
+    id: "p10", name: "James Kariuki", category: "plumbing", neighborhood: "Kileleshwa",
+    services: ["Leaking pipes", "Tap installation", "Water heater repair"],
+    rating: 4.7, reviews: 31, verified: true, backgroundChecked: false,
+    available: true, rateFrom: 950, rateTier: "mid", phone: "+254701234567", avatar: null,
+  },
+  {
+    id: "p11", name: "Ann Wairimu", category: "handyman", neighborhood: "Lavington",
+    services: ["Shelf installation", "Minor repairs", "Furniture assembly"],
+    rating: 4.5, reviews: 12, verified: false, backgroundChecked: false,
+    available: true, rateFrom: 850, rateTier: "mid", phone: "+254712345670", avatar: null,
+  },
+  {
+    id: "p12", name: "Joseph Mutua", category: "electrical", neighborhood: "Kilimani",
+    services: ["Socket repair", "Lighting installation", "Power outage diagnosis"],
+    rating: 4.3, reviews: 9, verified: false, backgroundChecked: false,
+    available: true, rateFrom: 750, rateTier: "budget", phone: "+254723456781", avatar: null,
+  },
+  {
+    id: "p13", name: "Esther Nyambura", category: "appliance", neighborhood: "Westlands",
+    services: ["Microwave repair", "Oven servicing", "Fridge repair"],
+    rating: 4.8, reviews: 37, verified: true, backgroundChecked: true,
+    available: true, rateFrom: 1250, rateTier: "mid", phone: "+254734567892", avatar: null,
+  },
+  {
+    id: "p14", name: "Michael Omondi", category: "ac", neighborhood: "Karen",
+    services: ["AC servicing", "AC repair", "Gas refill"],
+    rating: 4.7, reviews: 21, verified: true, backgroundChecked: false,
+    available: false, rateFrom: 2000, rateTier: "premium", phone: "+254745678903", avatar: null,
+  },
+  {
+    id: "p15", name: "Rehema Ali", category: "cleaning", neighborhood: "CBD",
+    services: ["Deep cleaning", "Move-in clean"],
+    rating: 4.4, reviews: 16, verified: false, backgroundChecked: false,
+    available: true, rateFrom: 800, rateTier: "budget", phone: "+254756789014", avatar: null,
+  },
+  {
+    id: "p16", name: "Stephen Kimani", category: "handyman", neighborhood: "Kileleshwa",
+    services: ["TV mounting", "Door repair", "Shelf installation"],
+    rating: 4.6, reviews: 24, verified: true, backgroundChecked: false,
+    available: true, rateFrom: 900, rateTier: "mid", phone: "+254767890125", avatar: null,
+  },
+];
