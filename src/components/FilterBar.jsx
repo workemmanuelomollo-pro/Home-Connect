@@ -1,5 +1,5 @@
 import { Search, Wrench, Zap, Sparkles, Hammer, WashingMachine, Snowflake } from "lucide-react";
-import { categories, neighborhoods } from "../config/site";
+import { getManagedCategories, getManagedNeighborhoods } from "../lib/demoStore";
 
 const iconMap = { Wrench, Zap, Sparkles, Hammer, WashingMachine, Snowflake };
 
@@ -8,6 +8,9 @@ export default function FilterBar({
   category, setCategory, 
   neighborhood, setNeighborhood 
 }) {
+  const categories = getManagedCategories();
+  const neighborhoods = getManagedNeighborhoods();
+
   return (
     <div className="flex flex-col gap-4 mb-8">
       {/* Search Input */}

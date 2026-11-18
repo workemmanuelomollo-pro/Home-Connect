@@ -26,7 +26,7 @@ export default function ProviderCard({ provider, onBook }) {
             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
               <span className="flex items-center gap-1 text-amber-500 font-medium">
                 <Star size={14} className="fill-amber-500" />
-                {provider.rating} ({provider.reviews})
+                {provider.reviews ? `${provider.rating} (${provider.reviews})` : "New provider"}
               </span>
             </div>
           </div>
@@ -34,7 +34,7 @@ export default function ProviderCard({ provider, onBook }) {
         
         {/* Availability Badge */}
         <div className={`text-xs px-2 py-1 rounded-full font-medium ${provider.available ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-          {provider.available ? "Available Today" : "Busy"}
+          {provider.available ? "Available Today" : "Unavailable"}
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export default function ProviderCard({ provider, onBook }) {
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="flex items-center gap-1 text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
           <MapPin size={12} />
-          {provider.neighborhood}
+          {provider.neighborhood || "Service area not set"}
         </span>
         {provider.verified && (
           <span className="flex items-center gap-1 text-brand-700 bg-brand-50 px-2 py-1 rounded-md font-medium">
@@ -63,17 +63,38 @@ export default function ProviderCard({ provider, onBook }) {
         {provider.services.join(" • ")}
       </p>
 
+      {provider.portfolio?.length > 0 && (
+        <div className="grid grid-cols-3 gap-2" aria-label="Portfolio photographs">
+          {provider.portfolio.slice(0, 3).map((photo) => (
+            <img
+              key={photo.id}
+              src={photo.dataUrl}
+              alt={`${provider.name} portfolio`}
+              className="h-20 w-full rounded-lg object-cover"
+            />
+          ))}
+        </div>
+      )}
+
       {/* Bottom Row: Price & Book Button */}
       <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
         <div className="text-sm">
-          <span className="text-slate-500 text-xs">From </span>
-          <span className="font-semibold text-slate-900">KSh {provider.rateFrom}</span>
+          {provider.rateFrom ? (
+            <>
+              <span className="text-slate-500 text-xs">From </span>
+              <span className="font-semibold text-slate-900">KSh {provider.rateFrom}</span>
+            </>
+          ) : (
+            <span className="text-xs text-slate-500">Contact for quote</span>
+          )}
         </div>
-        <button 
+        <button
+          type="button"
           onClick={() => onBook(provider)}
-          className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          disabled={!provider.available}
+          className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Book via WhatsApp
+          {provider.available ? "Book via WhatsApp" : "Unavailable"}
         </button>
       </div>
     </div>

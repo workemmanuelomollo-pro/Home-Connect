@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { getManagedCategories, getManagedNeighborhoods } from "../lib/demoStore";
 
 const steps = ["account", "role", "provider", "verification", "complete"];
 
@@ -30,12 +32,34 @@ export default function Onboarding({ onExplore }) {
   const [mode, setMode] = useState("signup");
   const [verificationMethod, setVerificationMethod] = useState("email");
   const [message, setMessage] = useState("");
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const { signUp, signIn, updateUserProfile } = useAuth();
+  const serviceCategories = getManagedCategories();
+  const serviceAreas = getManagedNeighborhoods();
 
   const stepIndex = steps.indexOf(step);
   const handleAccountSubmit = (event) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const name = formData.get("name")?.toString().trim();
+    const email = formData.get("email")?.toString().trim();
+    const password = formData.get("password")?.toString();
+
     if (mode === "signin") {
-      setMessage("Sign-in is a preview only. No account has been authenticated.");
+      const result = signIn({ email, password });
+      if (!result.success) {
+        setMessage(result.message);
+        return;
+      }
+
+      setMessage("");
+      onExplore("dashboard");
+      return;
+    }
+
+    const result = signUp({ name, email, password });
+    if (!result.success) {
+      setMessage(result.message);
       return;
     }
 
@@ -45,8 +69,71 @@ export default function Onboarding({ onExplore }) {
 
   const handleProviderSubmit = (event) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const category = formData.get("category")?.toString();
+    const providerData = {
+      legalName: formData.get("legalName")?.toString().trim(),
+      phone: formData.get("phone")?.toString().trim(),
+      category,
+      service: serviceCategories.find((item) => item.id === category)?.label || "",
+      area: formData.get("area")?.toString(),
+      identityDocumentName: formData.get("identityDocument")?.name || "",
+    };
+
+    updateUserProfile("provider", {
+      applicationStatus: "pending",
+      providerData,
+    });
+
     setMessage("");
     setStep("verification");
+  };
+
+  const handleGoogleSignIn = async () => {
+    setMessage("");
+    setIsGoogleSigningIn(true);
+
+    try {
+      const previewUser = {
+        uid: "google-preview",
+        name: "Google User",
+        email: "google.user@homeserviceconnect.test",
+        displayName: "Google User",
+        password: "google-preview",
+      };
+
+      const result = signUp({
+        name: previewUser.name,
+        email: previewUser.email,
+        password: previewUser.password,
+      });
+
+      if (!result.success) {
+        const signInResult = signIn({
+          email: previewUser.email,
+          password: previewUser.password,
+        });
+        if (!signInResult.success) {
+          throw new Error(signInResult.message || "Google sign-in failed.");
+        }
+      }
+
+      setStep("role");
+    } catch (error) {
+      console.error("Login failed:", error);
+      setMessage(
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
+  };
+
+  const handleCompleteProviderFlow = () => {
+    updateUserProfile("provider", {
+      applicationStatus: "pending",
+    });
+    onExplore("dashboard");
   };
 
   return (
@@ -105,9 +192,9 @@ export default function Onboarding({ onExplore }) {
 
         <section className="w-full max-w-xl justify-self-center rounded-3xl border border-brand-100 bg-white p-6 shadow-xl shadow-brand-900/10 sm:p-9">
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
-            <strong>Prototype mode:</strong> Google sign-in, email/WhatsApp
-            codes, and ID uploads are not connected. Nothing is saved, sent,
-            uploaded, or verified.
+            <strong>Prototype mode:</strong> Google sign-in is enabled. Email
+            sign-in, email/WhatsApp codes, and ID uploads are not connected.
+            Provider details are not saved or verified.
           </div>
 
           {step !== "account" && (
@@ -134,22 +221,25 @@ export default function Onboarding({ onExplore }) {
                 <p className="mt-2 text-sm text-slate-600">
                   {mode === "signup"
                     ? "Create an account preview, then choose how you want to use HomeConnect."
-                    : "Sign-in will be available when authentication is connected."}
+                    : "Sign in with Google, or use the email sign-in preview."}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setMessage(
-                    "Google sign-in is not connected yet. Configure an authentication provider to enable it."
-                  )
-                }
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleSigningIn}
+                aria-busy={isGoogleSigningIn}
                 className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 <span className="text-lg font-bold text-brand-600">G</span>
-                Continue with Google
+                {isGoogleSigningIn ? "Signing in..." : "Continue with Google"}
               </button>
+              {message && (
+                <p role="status" className="mt-3 text-sm text-amber-800">
+                  {message}
+                </p>
+              )}
 
               <div className="my-5 flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-slate-400">
                 <span className="h-px flex-1 bg-slate-200" />
@@ -201,11 +291,6 @@ export default function Onboarding({ onExplore }) {
                     placeholder="At least 8 characters"
                   />
                 </label>
-                {message && (
-                  <p role="status" className="text-sm text-amber-800">
-                    {message}
-                  </p>
-                )}
                 <button
                   type="submit"
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-bold text-white transition hover:bg-brand-700"
@@ -252,7 +337,10 @@ export default function Onboarding({ onExplore }) {
               <div className="mt-6 grid gap-4">
                 <button
                   type="button"
-                  onClick={onExplore}
+                  onClick={() => {
+                    updateUserProfile("customer", { applicationStatus: null });
+                    onExplore("marketplace");
+                  }}
                   className="group flex items-center gap-4 rounded-2xl border-2 border-brand-200 bg-brand-50 p-5 text-left transition hover:border-brand-500"
                 >
                   <span className="rounded-xl bg-white p-3 text-brand-600 shadow-sm">
@@ -273,7 +361,10 @@ export default function Onboarding({ onExplore }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStep("provider")}
+                  onClick={() => {
+                    updateUserProfile("provider", { applicationStatus: null });
+                    setStep("provider");
+                  }}
                   className="group flex items-center gap-4 rounded-2xl border border-slate-200 p-5 text-left transition hover:border-brand-300 hover:bg-slate-50"
                 >
                   <span className="rounded-xl bg-slate-100 p-3 text-slate-700">
@@ -343,7 +434,7 @@ export default function Onboarding({ onExplore }) {
                 <label className="block text-sm font-medium text-slate-700">
                   Services you provide
                   <select
-                    name="service"
+                    name="category"
                     required
                     defaultValue=""
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
@@ -351,11 +442,23 @@ export default function Onboarding({ onExplore }) {
                     <option value="" disabled>
                       Select a service
                     </option>
-                    <option>Plumbing</option>
-                    <option>Electrical</option>
-                    <option>Cleaning</option>
-                    <option>Repairs and maintenance</option>
-                    <option>Other home services</option>
+                    {serviceCategories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm font-medium text-slate-700">
+                  Primary service area
+                  <select
+                    name="area"
+                    required
+                    defaultValue=""
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                  >
+                    <option value="" disabled>Select a neighborhood</option>
+                    {serviceAreas.map((area) => (
+                      <option key={area} value={area}>{area}</option>
+                    ))}
                   </select>
                 </label>
                 <label className="block text-sm font-medium text-slate-700">
@@ -435,10 +538,10 @@ export default function Onboarding({ onExplore }) {
               </p>
               <button
                 type="button"
-                onClick={() => setStep("complete")}
+                onClick={handleCompleteProviderFlow}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-bold text-white transition hover:bg-brand-700"
               >
-                Finish preview only
+                Complete provider application
                 <ArrowRight size={18} />
               </button>
             </>
