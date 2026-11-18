@@ -43,6 +43,8 @@ CREATE TABLE provider_profiles (
     starting_price DECIMAL(10, 2) CHECK (starting_price >= 0),
     availability VARCHAR(50) DEFAULT 'available', -- available, busy, offline
     approval_status VARCHAR(50) DEFAULT 'pending', -- pending, approved, rejected
+    subscription_tier VARCHAR(50) DEFAULT 'free', -- free, pro
+    is_sponsored BOOLEAN DEFAULT FALSE, -- For Personal Adverts
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

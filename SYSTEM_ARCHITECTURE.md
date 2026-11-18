@@ -90,3 +90,37 @@ To provide a premium experience, providers are not limited to a simple "Online/O
   - **Qualifications:** Providers can upload certificates (e.g., NITA certifications for electricians).
   - **Storage Strategy:** To keep the database fast, image files will not be stored in PostgreSQL. Instead, they will be stored in **Supabase Storage** (or AWS S3), and only the secure URLs/paths will be saved in the database.
   - **Public Profile:** Customers can view this portfolio before deciding to book.
+
+---
+
+## Monetization & Advertising Strategy (Phase 3)
+
+Home Service Connect will generate revenue through three distinct streams: Transaction Commissions, Tiered Subscriptions, and Sponsored Advertisements.
+
+### 1. Transaction Commissions (M-Pesa Escrow)
+- **Pay-Per-Service:** Customers pay for the service via M-Pesa through the Home Connect platform.
+- **Escrow:** The platform holds the funds securely. Once the customer confirms the job is completed, the funds are released to the Fundi.
+- **Commission:** The platform automatically deducts a 10% service fee from every completed transaction.
+
+### 2. Provider Subscription Tiers
+
+Providers can upgrade their accounts for monthly recurring revenue (MRR):
+- **Free Tier:** Standard directory listing. Limited to accepting 3 jobs per month.
+- **Pro Tier (KSh 500/month):**
+  - Unlimited job acceptances.
+  - "Top Rated" verified badge.
+  - Priority ranking in search results (above Free tier).
+  - Advanced portfolio analytics (see how many people viewed their profile).
+
+### 3. Sponsored Placements (Personal Adverts)
+
+Providers can purchase "Top of Homepage" visibility.
+- **How it works:** When a customer opens the app, the top section displays a "Recommended Pro of the Day" or "Top Professional in Your Area".
+- **Showcase:** This sponsored card features the provider's best portfolio photos, ratings, and a direct "Book Now" button.
+- **Billing:** Providers pay a premium fee (e.g., KSh 1,000/week) to be featured to every user who opens the app in their specific estate.
+
+### 4. Growth & Other Features
+- **Referral System:** "Invite a neighbor to Home Connect and you both get a KSh 200 discount on your next service."
+- **Masked Calling:** Calls are routed through Africa's Talking/Twilio to protect user privacy.
+- **Emergency Broadcast:** One-tap panic button for urgent issues (e.g., burst pipe) that broadcasts the job to the 5 nearest available pros via SMS/WhatsApp.
+- **Job Bidding System:** Customers can post photos and budgets, and providers can submit competing bids.
