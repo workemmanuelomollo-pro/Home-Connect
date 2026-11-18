@@ -110,3 +110,25 @@ CREATE TABLE reports (
     status VARCHAR(50) DEFAULT 'open', -- open, investigating, resolved
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 12. PROVIDER PORTFOLIOS
+CREATE TABLE provider_portfolios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider_id UUID REFERENCES provider_profiles(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL, -- e.g., "Kitchen sink repair"
+    description TEXT,
+    image_url_before VARCHAR(500), -- Stored in Supabase Storage
+    image_url_after VARCHAR(500),  -- Stored in Supabase Storage
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. PROVIDER AVAILABILITY (Advanced Calendar)
+CREATE TABLE provider_availability (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider_id UUID REFERENCES provider_profiles(id) ON DELETE CASCADE,
+    day_of_week INT CHECK (day_of_week >= 0 AND day_of_week <= 6), -- 0=Sunday, 6=Saturday
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);

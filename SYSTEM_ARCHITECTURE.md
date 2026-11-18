@@ -48,3 +48,45 @@ While Home Service Connect acts as the primary directory and database, WhatsApp 
 4. Approve, reject, or request additional information from providers.
 5. Monitor booking requests and customer complaints/reports.
 6. Manage categories, locations (estates), and user accounts (suspend/reactivate).
+
+---
+
+## Booking Status Lifecycle
+
+To maintain data integrity and clear communication, a booking follows a strict state machine. A booking cannot skip steps, and statuses can only be updated by authorized users (the assigned Provider or an Administrator).
+
+### The States
+1. **Pending:** The customer has submitted a request via the platform, but no action has been taken yet.
+2. **Contact Initiated:** The customer has clicked the WhatsApp button, and the initial conversation has started.
+3. **Accepted:** The provider has reviewed the request and formally confirmed they will take the job.
+4. **In Progress:** The provider has started the work.
+5. **Completed:** The provider has finished the job. (This unlocks the customer's ability to leave a review).
+6. **Cancelled:** The customer or provider cancelled the job before completion.
+
+*(Future states to be added: **Declined** by provider, or **Expired** if the customer doesn't respond for 48 hours.)*
+
+### Audit Trail & Security Rules
+- **Authorized Updates Only:** Customers cannot mark their own job as "Completed". Providers cannot mark a job as "Cancelled" after it is "In Progress" without an Admin override.
+- **Immutable History:** Every time a status changes, the system must record it in the `booking_events` table. This creates an audit trail (who changed it, from what status, to what status, and at what time). If a dispute arises, the Admin can review the exact timeline of events.
+
+---
+
+## Provider Availability & Portfolio
+
+To provide a premium experience, providers are not limited to a simple "Online/Offline" toggle. They require a flexible calendar system and a visual portfolio to win trust.
+
+### 1. Availability Calendar
+- **Current MVP:** Providers can toggle a simple "Available for Work" status on their dashboard.
+- **Phase 2 (Production):** Providers will have a dynamic calendar. They can mark themselves as:
+  - `Available Now` (Instant booking)
+  - `Unavailable` (On holiday or fully booked)
+  - `Scheduled Availability` (e.g., "Available Mondays and Wednesdays from 8 AM to 5 PM").
+- **Customer View:** Customers will only see providers who are available based on the requested urgency (e.g., a "Today (High)" urgency will hide providers marked unavailable).
+
+### 2. Professional Portfolio
+- **Current MVP:** The Provider Dashboard contains a placeholder for portfolio images.
+- **Phase 2 (Production):**
+  - **Visual Proof:** Fundis can upload "Before and After" photos of completed jobs.
+  - **Qualifications:** Providers can upload certificates (e.g., NITA certifications for electricians).
+  - **Storage Strategy:** To keep the database fast, image files will not be stored in PostgreSQL. Instead, they will be stored in **Supabase Storage** (or AWS S3), and only the secure URLs/paths will be saved in the database.
+  - **Public Profile:** Customers can view this portfolio before deciding to book.
