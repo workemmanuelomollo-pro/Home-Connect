@@ -195,7 +195,7 @@ function MarketplaceView({ user, onOpenOnboarding, onOpenDashboard, onLogout }) 
 }
 
 function AppContent() {
-  const { user, applicationStatus, authLoading, authError, logout } = useAuth();
+  const { user, role, applicationStatus, authLoading, authError, logout } = useAuth();
   const [screen, setScreen] = useState("onboarding");
   const initializedAuth = useRef(false);
 
@@ -235,7 +235,7 @@ function AppContent() {
   }
 
   const isAdmin =
-    user.email?.toLowerCase() === "admin@billion.com" && user.emailVerified;
+    user?.email?.trim().toLowerCase() === "admin@billion.com" || role === "admin";
   const isApprovedProvider =
     applicationStatus === "approved" || user.applicationStatus === "approved";
 
