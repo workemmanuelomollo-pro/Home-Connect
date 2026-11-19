@@ -33,12 +33,12 @@ export default function Onboarding({ onExplore }) {
   const [verificationMethod, setVerificationMethod] = useState("email");
   const [message, setMessage] = useState("");
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
-  const { signUp, signIn, updateUserProfile } = useAuth();
+  const { signUp, signIn, signInWithGoogle, updateUserProfile } = useAuth();
   const serviceCategories = getManagedCategories();
   const serviceAreas = getManagedNeighborhoods();
 
   const stepIndex = steps.indexOf(step);
-  const handleAccountSubmit = (event) => {
+  const handleAccountSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name")?.toString().trim();
@@ -46,7 +46,7 @@ export default function Onboarding({ onExplore }) {
     const password = formData.get("password")?.toString();
 
     if (mode === "signin") {
-      const result = signIn({ email, password });
+      const result = await signIn({ email, password });
       if (!result.success) {
         setMessage(result.message);
         return;
@@ -57,7 +57,7 @@ export default function Onboarding({ onExplore }) {
       return;
     }
 
-    const result = signUp({ name, email, password });
+    const result = await signUp({ name, email, password });
     if (!result.success) {
       setMessage(result.message);
       return;
@@ -67,7 +67,7 @@ export default function Onboarding({ onExplore }) {
     setStep("role");
   };
 
-  const handleProviderSubmit = (event) => {
+  const handleProviderSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const category = formData.get("category")?.toString();
@@ -80,10 +80,15 @@ export default function Onboarding({ onExplore }) {
       identityDocumentName: formData.get("identityDocument")?.name || "",
     };
 
-    updateUserProfile("provider", {
+    const saved = await updateUserProfile("provider", {
       applicationStatus: "pending",
       providerData,
     });
+
+    if (!saved) {
+      setMessage("Could not save your provider application. Please try again.");
+      return;
+    }
 
     setMessage("");
     setStep("verification");
@@ -94,28 +99,10 @@ export default function Onboarding({ onExplore }) {
     setIsGoogleSigningIn(true);
 
     try {
-      const previewUser = {
-        uid: "google-preview",
-        name: "Google User",
-        email: "google.user@homeserviceconnect.test",
-        displayName: "Google User",
-        password: "google-preview",
-      };
-
-      const result = signUp({
-        name: previewUser.name,
-        email: previewUser.email,
-        password: previewUser.password,
-      });
-
+      const result = await signInWithGoogle();
       if (!result.success) {
-        const signInResult = signIn({
-          email: previewUser.email,
-          password: previewUser.password,
-        });
-        if (!signInResult.success) {
-          throw new Error(signInResult.message || "Google sign-in failed.");
-        }
+        setMessage(result.message || "Google sign-in failed.");
+        return;
       }
 
       setStep("role");
@@ -129,11 +116,32 @@ export default function Onboarding({ onExplore }) {
     }
   };
 
-  const handleCompleteProviderFlow = () => {
-    updateUserProfile("provider", {
+  const handleCompleteProviderFlow = async () => {
+    const saved = await updateUserProfile("provider", {
       applicationStatus: "pending",
     });
+    if (!saved) {
+      setMessage("Could not save your provider application. Please try again.");
+      return;
+    }
     onExplore("dashboard");
+  };
+
+  const handleRoleSelection = async (nextRole) => {
+    const saved = await updateUserProfile(nextRole, {
+      applicationStatus: null,
+    });
+    if (!saved) {
+      setMessage("Could not update your account. Please try again.");
+      return;
+    }
+
+    if (nextRole === "customer") {
+      onExplore("marketplace");
+    } else {
+      setMessage("");
+      setStep("provider");
+    }
   };
 
   return (
@@ -192,9 +200,9 @@ export default function Onboarding({ onExplore }) {
 
         <section className="w-full max-w-xl justify-self-center rounded-3xl border border-brand-100 bg-white p-6 shadow-xl shadow-brand-900/10 sm:p-9">
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
-            <strong>Prototype mode:</strong> Google sign-in is enabled. Email
-            sign-in, email/WhatsApp codes, and ID uploads are not connected.
-            Provider details are not saved or verified.
+            <strong>Firebase authentication:</strong> Email/password and Google
+            sign-in are enabled. Email/WhatsApp verification codes and identity
+            document uploads are not connected.
           </div>
 
           {step !== "account" && (
@@ -212,6 +220,12 @@ export default function Onboarding({ onExplore }) {
             </div>
           )}
 
+          {message && (
+            <p role="alert" className="mb-4 text-sm text-amber-800">
+              {message}
+            </p>
+          )}
+
           {step === "account" && (
             <>
               <div className="mb-6">
@@ -220,8 +234,8 @@ export default function Onboarding({ onExplore }) {
                 </h2>
                 <p className="mt-2 text-sm text-slate-600">
                   {mode === "signup"
-                    ? "Create an account preview, then choose how you want to use HomeConnect."
-                    : "Sign in with Google, or use the email sign-in preview."}
+                    ? "Create an account, then choose how you want to use HomeConnect."
+                    : "Sign in with Google or your email and password."}
                 </p>
               </div>
 
@@ -235,12 +249,6 @@ export default function Onboarding({ onExplore }) {
                 <span className="text-lg font-bold text-brand-600">G</span>
                 {isGoogleSigningIn ? "Signing in..." : "Continue with Google"}
               </button>
-              {message && (
-                <p role="status" className="mt-3 text-sm text-amber-800">
-                  {message}
-                </p>
-              )}
-
               <div className="my-5 flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-slate-400">
                 <span className="h-px flex-1 bg-slate-200" />
                 or use email
@@ -337,10 +345,7 @@ export default function Onboarding({ onExplore }) {
               <div className="mt-6 grid gap-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    updateUserProfile("customer", { applicationStatus: null });
-                    onExplore("marketplace");
-                  }}
+                  onClick={() => handleRoleSelection("customer")}
                   className="group flex items-center gap-4 rounded-2xl border-2 border-brand-200 bg-brand-50 p-5 text-left transition hover:border-brand-500"
                 >
                   <span className="rounded-xl bg-white p-3 text-brand-600 shadow-sm">
@@ -361,10 +366,7 @@ export default function Onboarding({ onExplore }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    updateUserProfile("provider", { applicationStatus: null });
-                    setStep("provider");
-                  }}
+                  onClick={() => handleRoleSelection("provider")}
                   className="group flex items-center gap-4 rounded-2xl border border-slate-200 p-5 text-left transition hover:border-brand-300 hover:bg-slate-50"
                 >
                   <span className="rounded-xl bg-slate-100 p-3 text-slate-700">

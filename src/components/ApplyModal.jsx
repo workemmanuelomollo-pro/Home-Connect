@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { X } from "lucide-react";
 import { getManagedCategories, getManagedNeighborhoods } from "../lib/demoStore";
+import { db } from "../lib/firebase";
 
 export default function ApplyModal({ isOpen, onClose }) {
-  const { user, updateUserProfile } = useAuth();
+  const { user, refreshUserProfile } = useAuth();
   const categories = getManagedCategories();
   const neighborhoods = getManagedNeighborhoods();
   const [service, setService] = useState(() => categories[0]?.id || "");
@@ -18,9 +20,15 @@ export default function ApplyModal({ isOpen, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
 
     try {
-      const saved = updateUserProfile("provider", {
+      if (!user?.uid) {
+        throw new Error("Please sign in before submitting a provider application.");
+      }
+
+      await updateDoc(doc(db, "users", user.uid), {
+        role: "provider",
         applicationStatus: "pending",
         providerData: {
           category: service,
@@ -30,16 +38,18 @@ export default function ApplyModal({ isOpen, onClose }) {
           name: user?.name || "Provider",
         },
       });
-
-      if (!saved) {
-        setError("Could not save your application. Check browser storage and try again.");
-        return;
+      const refreshed = await refreshUserProfile();
+      if (!refreshed) {
+        throw new Error("Your application was saved, but your profile could not refresh. Please reload the page.");
       }
-
       onClose();
     } catch (error) {
-      console.error(error);
-      setError("Could not submit your application. Please try again.");
+      console.error("Failed to submit provider application:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Could not submit your application. Please try again.",
+      );
     } finally {
       setLoading(false);
     }

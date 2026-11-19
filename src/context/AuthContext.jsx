@@ -1,234 +1,361 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  updateProfile,
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { auth, db, googleProvider } from "../lib/firebase";
 
 const STORAGE_KEYS = {
   users: "hsc_users",
-  session: "hsc_session",
 };
 
 const AuthContext = createContext();
 
-function readStorageJSON(key, fallback = []) {
+function readStoredUsers() {
   try {
-    const value = window.localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
+    const stored = window.localStorage.getItem(STORAGE_KEYS.users);
+    return stored ? JSON.parse(stored) : [];
   } catch {
-    return fallback;
+    return [];
   }
 }
 
-function writeStorageJSON(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    console.error(`Failed to write local demo data for "${key}".`);
-    return false;
-  }
-}
-
-function getStoredUsers() {
-  return readStorageJSON(STORAGE_KEYS.users, []);
-}
-
-function readInitialSession() {
-  const savedSession = readStorageJSON(STORAGE_KEYS.session, null);
-  if (!savedSession?.user) return null;
-
-  const users = getStoredUsers();
-  const account = users.find(
+function cacheUser(profile) {
+  const users = readStoredUsers();
+  const safeProfile = {
+    uid: profile.uid,
+    name: profile.name,
+    email: profile.email,
+    emailVerified: profile.emailVerified,
+    displayName: profile.displayName,
+    photoURL: profile.photoURL,
+    role: profile.role,
+    applicationStatus: profile.applicationStatus,
+    providerData: profile.providerData,
+    accountStatus: profile.accountStatus,
+  };
+  const index = users.findIndex(
     (entry) =>
-      entry.uid === savedSession.user.uid ||
-      entry.email === savedSession.user.email,
+      entry.uid === profile.uid ||
+      entry.email?.toLowerCase() === profile.email?.toLowerCase(),
   );
-  const sourceUser = { ...account, ...savedSession.user };
-  const role = account?.role || savedSession.role || sourceUser.role || "customer";
-  const applicationStatus =
-    account?.applicationStatus ??
-    savedSession.applicationStatus ??
-    sourceUser.applicationStatus ??
-    null;
-  const accountStatus =
-    account?.accountStatus || savedSession.user.accountStatus || "active";
 
+  if (index === -1) {
+    users.push(safeProfile);
+  } else {
+    users[index] = { ...users[index], ...safeProfile };
+    delete users[index].password;
+  }
+
+  window.localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+}
+
+function normalizeProfile(firebaseUser, data = {}) {
+  const name =
+    data.name ||
+    data.displayName ||
+    firebaseUser.displayName ||
+    firebaseUser.email?.split("@")[0] ||
+    "Customer";
   return {
-    user: {
-      uid: sourceUser.uid,
-      name: sourceUser.name || sourceUser.displayName || "Customer",
-      email: sourceUser.email,
-      displayName: sourceUser.displayName || sourceUser.name || "Customer",
-      photoURL: sourceUser.photoURL || null,
-      role,
-      applicationStatus,
-      providerData: sourceUser.providerData || null,
-      accountStatus,
-    },
-    role,
-    applicationStatus,
-    accountStatus,
+    uid: firebaseUser.uid,
+    name,
+    email: firebaseUser.email,
+    emailVerified: firebaseUser.emailVerified === true,
+    displayName: data.displayName || firebaseUser.displayName || name,
+    photoURL: data.photoURL || firebaseUser.photoURL || null,
+    role: data.role || "customer",
+    applicationStatus: data.applicationStatus ?? null,
+    providerData: data.providerData || null,
+    accountStatus: data.accountStatus || "active",
   };
 }
 
+async function ensureUserDocument(firebaseUser, initialData = {}) {
+  const userRef = doc(db, "users", firebaseUser.uid);
+  const snapshot = await getDoc(userRef);
+  if (snapshot.exists()) return snapshot.data();
+
+  const profile = normalizeProfile(firebaseUser, initialData);
+  if (!["customer", "provider"].includes(profile.role)) {
+    profile.role = "customer";
+  }
+  if (![null, "pending"].includes(profile.applicationStatus)) {
+    profile.applicationStatus = "pending";
+  }
+  await setDoc(userRef, {
+    ...profile,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return profile;
+}
+
+function getAuthErrorMessage(error) {
+  switch (error?.code) {
+    case "auth/email-already-in-use":
+      return "An account with this email already exists. Please sign in instead.";
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "We could not find a matching account with that email and password.";
+    case "auth/weak-password":
+      return "Choose a password with at least 8 characters.";
+    case "auth/network-request-failed":
+      return "Could not reach Firebase. Check your connection and try again.";
+    case "auth/operation-not-allowed":
+      return "Enable this sign-in method in Firebase Authentication and try again.";
+    case "permission-denied":
+      return "Firebase denied access. Check the Firestore security rules for this account.";
+    case "auth/popup-blocked":
+      return "Allow pop-up windows for this site to use Google sign-in.";
+    case "auth/popup-closed-by-user":
+      return "Google sign-in was cancelled.";
+    default:
+      return "Authentication failed. Please try again.";
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [initialSession] = useState(readInitialSession);
-  const [user, setUser] = useState(initialSession?.user ?? null);
-  const [role, setRole] = useState(initialSession?.role ?? null);
-  const [applicationStatus, setApplicationStatus] = useState(
-    initialSession?.applicationStatus ?? null,
-  );
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
+  const [applicationStatus, setApplicationStatus] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
 
-  const persistSession = useCallback((nextUser, nextRole, nextApplicationStatus) => {
-    const role = nextRole || nextUser.role || "customer";
-    const applicationStatus =
-      nextApplicationStatus ?? nextUser.applicationStatus ?? null;
-    const normalizedUser = {
-      uid: nextUser.uid,
-      name: nextUser.name || "Customer",
-      email: nextUser.email,
-      displayName: nextUser.name || nextUser.displayName || "Customer",
-      photoURL: nextUser.photoURL || null,
-      role,
-      applicationStatus,
-      providerData: nextUser.providerData || null,
-      accountStatus: nextUser.accountStatus || "active",
-    };
-
-    const session = {
-      user: normalizedUser,
-      role,
-      applicationStatus,
-    };
-
-    if (!writeStorageJSON(STORAGE_KEYS.session, session)) return false;
+  const applyProfile = useCallback((firebaseUser, profileData) => {
+    const cachedProfile = readStoredUsers().find(
+      (entry) =>
+        entry.uid === firebaseUser.uid ||
+        entry.email?.toLowerCase() === firebaseUser.email?.toLowerCase(),
+    );
+    const mergedData = { ...profileData };
+    if (cachedProfile?.providerData?.portfolio && !profileData?.providerData?.portfolio) {
+      mergedData.providerData = {
+        ...profileData?.providerData,
+        portfolio: cachedProfile.providerData.portfolio,
+      };
+    }
+    const normalizedUser = normalizeProfile(firebaseUser, mergedData);
+    cacheUser(normalizedUser);
     setUser(normalizedUser);
-    setRole(session.role);
-    setApplicationStatus(session.applicationStatus);
-    return true;
+    setRole(normalizedUser.role);
+    setApplicationStatus(normalizedUser.applicationStatus);
+    setAuthError("");
+    return normalizedUser;
   }, []);
 
-  const signUp = useCallback(({ name, email, password }) => {
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
+        setRole(null);
+        setApplicationStatus(null);
+        setAuthError("");
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await ensureUserDocument(firebaseUser);
+        applyProfile(firebaseUser, profile);
+      } catch (error) {
+        console.error("Failed to load the signed-in user's profile:", error);
+        setUser(normalizeProfile(firebaseUser));
+        setRole("customer");
+        setApplicationStatus(null);
+        setAuthError("Could not load your account profile from Firestore.");
+      } finally {
+        setAuthLoading(false);
+      }
+    });
+  }, [applyProfile]);
+
+  const signUp = useCallback(async ({ name, email, password }) => {
     const trimmedEmail = String(email || "").trim().toLowerCase();
     const trimmedName = String(name || "").trim();
 
     if (!trimmedEmail || !trimmedName || String(password || "").length < 8) {
       return {
         success: false,
-        message: "Please provide a valid name, email, and a password with at least 8 characters.",
+        message:
+          "Please provide a valid name, and a password with at least 8 characters.",
       };
     }
 
-    const users = getStoredUsers();
-    const existing = users.find((entry) => entry.email.toLowerCase() === trimmedEmail);
-
-    if (existing) {
-      return {
-        success: false,
-        message: "An account with this email already exists. Please sign in instead.",
-      };
+    try {
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        trimmedEmail,
+        String(password),
+      );
+      await updateProfile(credential.user, { displayName: trimmedName });
+      const profile = normalizeProfile(credential.user, {
+        name: trimmedName,
+        role: "customer",
+        applicationStatus: null,
+        accountStatus: "active",
+      });
+      await setDoc(doc(db, "users", credential.user.uid), {
+        ...profile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      applyProfile(credential.user, profile);
+      return { success: true, user: profile };
+    } catch (error) {
+      console.error("Failed to create account:", error);
+      return { success: false, message: getAuthErrorMessage(error) };
     }
+  }, [applyProfile]);
 
-    const nextUser = {
-      uid: `local-${Date.now()}`,
-      name: trimmedName,
-      email: trimmedEmail,
-      password,
-      displayName: trimmedName,
-      role: "customer",
-      applicationStatus: null,
-      providerData: null,
-      accountStatus: "active",
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(nextUser);
-    if (!writeStorageJSON(STORAGE_KEYS.users, users)) {
-      return {
-        success: false,
-        message: "We could not save your account in this browser. Check available storage and try again.",
-      };
-    }
-
-    if (!persistSession(nextUser, "customer", null)) {
-      return {
-        success: false,
-        message: "Your account was saved, but this browser could not save the sign-in session. Please sign in.",
-      };
-    }
-    return { success: true, user: nextUser };
-  }, [persistSession]);
-
-  const signIn = useCallback(({ email, password }) => {
+  const signIn = useCallback(async ({ email, password }) => {
     const trimmedEmail = String(email || "").trim().toLowerCase();
-    const trimmedPassword = String(password || "");
+    try {
+      let credential;
+      let legacyProfile;
+      try {
+        credential = await signInWithEmailAndPassword(
+          auth,
+          trimmedEmail,
+          String(password || ""),
+        );
+      } catch (error) {
+        const legacyAccount = readStoredUsers().find(
+          (entry) =>
+            entry.email?.toLowerCase() === trimmedEmail &&
+            entry.password === String(password || ""),
+        );
+        if (legacyAccount?.accountStatus === "suspended") {
+            return {
+              success: false,
+              message: "This account is suspended. Please contact support.",
+            };
+        }
+        if (
+          !legacyAccount ||
+          !["auth/user-not-found", "auth/invalid-credential"].includes(error?.code)
+        ) {
+          throw error;
+        }
 
-    const users = getStoredUsers();
-    const match = users.find(
-      (entry) => entry.email.toLowerCase() === trimmedEmail && entry.password === trimmedPassword,
-    );
+        credential = await createUserWithEmailAndPassword(
+          auth,
+          trimmedEmail,
+          String(password || ""),
+        );
+        if (legacyAccount.name) {
+          await updateProfile(credential.user, { displayName: legacyAccount.name });
+        }
+        legacyProfile = legacyAccount;
+      }
 
-    if (!match) {
-      return {
-        success: false,
-        message: "We could not find a matching account with that email and password.",
-      };
+      const profile = await ensureUserDocument(credential.user, legacyProfile);
+      if (profile.accountStatus === "suspended") {
+        await firebaseSignOut(auth);
+        return {
+          success: false,
+          message: "This account is suspended. Please contact support.",
+        };
+      }
+      const signedInUser = applyProfile(credential.user, profile);
+      return { success: true, user: signedInUser };
+    } catch (error) {
+      console.error("Failed to sign in:", error);
+      return { success: false, message: getAuthErrorMessage(error) };
     }
+  }, [applyProfile]);
 
-    if (match.accountStatus === "suspended") {
-      return {
-        success: false,
-        message: "This account is suspended. Please contact support.",
-      };
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const credential = await signInWithPopup(auth, googleProvider);
+      const profile = await ensureUserDocument(credential.user);
+      if (profile.accountStatus === "suspended") {
+        await firebaseSignOut(auth);
+        return {
+          success: false,
+          message: "This account is suspended. Please contact support.",
+        };
+      }
+      const signedInUser = applyProfile(credential.user, profile);
+      return { success: true, user: signedInUser };
+    } catch (error) {
+      console.error("Failed to sign in with Google:", error);
+      return { success: false, message: getAuthErrorMessage(error) };
     }
+  }, [applyProfile]);
 
-    if (!persistSession(match, match.role || "customer", match.applicationStatus || null)) {
-      return {
-        success: false,
-        message: "We could not save your sign-in session in this browser. Check available storage and try again.",
-      };
-    }
-    return { success: true, user: match };
-  }, [persistSession]);
+  const updateUserProfile = useCallback(async (nextRole, updates = {}) => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return false;
 
-  const updateUserProfile = useCallback((nextRole, updates = {}) => {
-    const users = getStoredUsers();
-    const activeUser = user || readStorageJSON(STORAGE_KEYS.session, null)?.user;
+    try {
+      const remoteUpdates = { ...updates, updatedAt: serverTimestamp() };
+      if (updates.providerData) {
+        const providerData = { ...updates.providerData };
+        delete providerData.portfolio;
+        remoteUpdates.providerData = providerData;
+      }
+      if (nextRole) remoteUpdates.role = nextRole;
 
-    if (!activeUser) {
+      await updateDoc(doc(db, "users", firebaseUser.uid), remoteUpdates);
+      const existing = user || normalizeProfile(firebaseUser);
+      applyProfile(firebaseUser, {
+        ...existing,
+        ...updates,
+        role: nextRole || updates.role || existing.role,
+      });
+      return true;
+    } catch (error) {
+      console.error("Failed to update user profile:", error);
       return false;
     }
+  }, [applyProfile, user]);
 
-    const index = users.findIndex((entry) => entry.email === activeUser.email);
+  const refreshUserProfile = useCallback(async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return false;
 
-    if (index === -1) {
+    try {
+      const snapshot = await getDoc(doc(db, "users", firebaseUser.uid));
+      if (!snapshot.exists()) {
+        throw new Error("The signed-in user's Firestore profile does not exist.");
+      }
+      applyProfile(firebaseUser, snapshot.data());
+      return true;
+    } catch (error) {
+      console.error("Failed to refresh user profile:", error);
       return false;
     }
+  }, [applyProfile]);
 
-    const updatedUser = {
-      ...users[index],
-      ...updates,
-      role: nextRole || users[index].role || "customer",
-      applicationStatus:
-        "applicationStatus" in updates
-          ? updates.applicationStatus
-          : users[index].applicationStatus ?? null,
-      providerData:
-        "providerData" in updates
-          ? updates.providerData
-          : users[index].providerData ?? null,
-    };
-
-    users[index] = updatedUser;
-    if (!writeStorageJSON(STORAGE_KEYS.users, users)) return false;
-    if (!persistSession(updatedUser, updatedUser.role || "customer", updatedUser.applicationStatus || null)) {
-      return false;
+  const logout = useCallback(async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+      throw error;
     }
-    return true;
-  }, [persistSession, user]);
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEYS.session);
-    setUser(null);
-    setRole(null);
-    setApplicationStatus(null);
   }, []);
 
   const value = useMemo(
@@ -236,12 +363,28 @@ export function AuthProvider({ children }) {
       user,
       role,
       applicationStatus,
+      authLoading,
+      authError,
       signUp,
       signIn,
+      signInWithGoogle,
       logout,
       updateUserProfile,
+      refreshUserProfile,
     }),
-    [user, role, applicationStatus, signUp, signIn, logout, updateUserProfile],
+    [
+      user,
+      role,
+      applicationStatus,
+      authLoading,
+      authError,
+      signUp,
+      signIn,
+      signInWithGoogle,
+      logout,
+      updateUserProfile,
+      refreshUserProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

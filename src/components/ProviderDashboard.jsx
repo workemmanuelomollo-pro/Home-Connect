@@ -38,15 +38,15 @@ export default function ProviderDashboard() {
     ? (reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
     : 0;
 
-  const handleAvailabilityChange = () => {
-    const saved = updateUserProfile("provider", {
+  const handleAvailabilityChange = async () => {
+    const saved = await updateUserProfile("provider", {
       providerData: { ...providerData, available: !isAvailable },
     });
 
     setPortfolioMessage(
       saved
         ? `Availability set to ${!isAvailable ? "available" : "unavailable"}.`
-        : "Could not save your availability. Check browser storage and try again.",
+        : "Could not save your availability. Please try again.",
     );
   };
 
@@ -90,12 +90,12 @@ export default function ProviderDashboard() {
           dataUrl,
         },
       ];
-      const saved = updateUserProfile("provider", {
+      const saved = await updateUserProfile("provider", {
         providerData: { ...providerData, portfolio: nextPortfolio },
       });
 
       if (!saved) {
-        setPortfolioMessage("Could not save this image. Check browser storage and try again.");
+        setPortfolioMessage("Could not save this image. Please try again.");
         return;
       }
 
@@ -109,8 +109,8 @@ export default function ProviderDashboard() {
     }
   };
 
-  const handlePortfolioRemove = (photoId) => {
-    const saved = updateUserProfile("provider", {
+  const handlePortfolioRemove = async (photoId) => {
+    const saved = await updateUserProfile("provider", {
       providerData: {
         ...providerData,
         portfolio: portfolio.filter((photo) => photo.id !== photoId),
@@ -120,7 +120,7 @@ export default function ProviderDashboard() {
     setPortfolioMessage(
       saved
         ? "Portfolio image removed."
-        : "Could not remove this image. Check browser storage and try again.",
+        : "Could not remove this image. Please try again.",
     );
   };
 

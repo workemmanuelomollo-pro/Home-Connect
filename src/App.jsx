@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { providers } from "./data/providers";
 import ProviderCard from "./components/ProviderCard";
 import FilterBar from "./components/FilterBar";
@@ -195,8 +195,31 @@ function MarketplaceView({ user, onOpenOnboarding, onOpenDashboard, onLogout }) 
 }
 
 function AppContent() {
-  const { user, applicationStatus, logout } = useAuth();
-  const [screen, setScreen] = useState(() => (user ? "dashboard" : "onboarding"));
+  const { user, applicationStatus, authLoading, authError, logout } = useAuth();
+  const [screen, setScreen] = useState("onboarding");
+  const initializedAuth = useRef(false);
+
+  useEffect(() => {
+    if (!authLoading && !initializedAuth.current) {
+      initializedAuth.current = true;
+      setScreen(user ? "dashboard" : "onboarding");
+    }
+  }, [authLoading, user]);
+
+  if (authLoading) {
+    return <div className="p-8 text-center text-slate-600">Loading account...</div>;
+  }
+
+  if (authError) {
+    return (
+      <div className="mx-auto mt-10 max-w-xl rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+        <p role="alert">{authError}</p>
+        <button type="button" onClick={logout} className="mt-3 font-semibold underline">
+          Sign out and try again
+        </button>
+      </div>
+    );
+  }
 
   if (screen === "onboarding") {
     return <Onboarding onExplore={(destination = "marketplace") => setScreen(destination)} />;
@@ -211,7 +234,8 @@ function AppContent() {
     );
   }
 
-  const isAdmin = user.email?.toLowerCase().includes("admin");
+  const isAdmin =
+    user.email?.toLowerCase() === "admin@billion.com" && user.emailVerified;
   const isApprovedProvider =
     applicationStatus === "approved" || user.applicationStatus === "approved";
 

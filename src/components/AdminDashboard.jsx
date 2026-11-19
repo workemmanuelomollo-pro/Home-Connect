@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle, ShieldAlert, Star, XCircle } from "lucide-react";
+import { collection, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { getStoredReviews, setReviewStatus } from "../lib/demoStore";
 
 function readUsers() {
@@ -12,7 +14,23 @@ function readUsers() {
 }
 
 async function loadPendingApplications() {
-  return readUsers().filter((user) => user.applicationStatus === "pending");
+  const snapshot = await getDocs(
+    query(collection(db, "users"), where("applicationStatus", "==", "pending")),
+  );
+  const applications = new Map(
+    readUsers()
+      .filter((user) => user.applicationStatus === "pending")
+      .map((user) => [user.uid, user]),
+  );
+
+  snapshot.docs.forEach((userDocument) => {
+    applications.set(userDocument.id, {
+      ...applications.get(userDocument.id),
+      ...userDocument.data(),
+      uid: userDocument.id,
+    });
+  });
+  return [...applications.values()];
 }
 
 async function loadPendingReviews() {
@@ -79,16 +97,15 @@ export default function AdminDashboard() {
     try {
       const users = readUsers();
       const targetUserIndex = users.findIndex((user) => user.uid === userId);
-
-      if (targetUserIndex === -1) {
+      const targetUser = applications.find((application) => application.uid === userId);
+      if (!targetUser) {
         throw new Error("Application not found.");
       }
 
-      users[targetUserIndex] = {
-        ...users[targetUserIndex],
-        ...updates,
-      };
-
+      await updateDoc(doc(db, "users", userId), updates);
+      const updatedUser = { ...targetUser, ...updates };
+      if (targetUserIndex === -1) users.push(updatedUser);
+      else users[targetUserIndex] = updatedUser;
       window.localStorage.setItem("hsc_users", JSON.stringify(users));
       await fetchApplications();
     } catch (updateError) {
